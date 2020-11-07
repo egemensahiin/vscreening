@@ -1,0 +1,105 @@
+#!/bin/bash
+
+usage(){
+	echo "USAGE: $0 [-hv] -p PROTEIN -l LIGANDS -c CONFIG"
+	echo "$(basename $0), does virtual screenin by using AutoDock vina."
+	echo "Files for protein, database file that contains ligands"
+	echo "and configuration file must be provided."
+	echo "  -p PROTEIN    .pdbqt file that provides proteins."
+	echo "  -l LIGANDLAR  Database file which contains ligand structures"
+	echo "                (.mol, .sdf etc.)"
+	echo "  -c CONFIG     Configuration file that specify the size and"
+	echo "                the position of the grid (and other optional"
+	echo "                parameters)."
+	echo "  -h            Write out this message."
+	echo "  -v            Verbose output"
+}
+
+error(){
+	echo $1
+	usage
+	exit 1
+}
+
+extract(){
+	obabel $MOLS -opdbqt -O ligand.pdbqt -m --errorlevel 3
+}
+
+screen(){
+	for i in ligand*.pdbqt
+	do
+		base_i="$(echo $i | cut -d"." -f1)"
+		./vina --ligand $i --receptor $PROT --config $CONF --out ${base_i}_out.pdbqt --log ${base_i}_log.txt
+	done
+}
+
+write_log(){
+	echo "filename,mode,affinity,dist_from_rmsd_lb,best_mode_rmsd_ub" > sorted_logs.csv
+	for i in ligand*_log.txt
+	do
+		for a in $(cat $i | tail -n 10 | head -n 9 | awk '{print $1","$2","$3","$4}')
+		do
+			echo $(echo $i | cut -d"_" -f1)","$a >> tmp.csv
+		done
+	done
+	sort -k3 -n -t, tmp.csv >> sorted_logs.csv
+	rm tmp.csv
+}
+
+while getopts p:l:c:hv OPTION
+do
+	case $OPTION in	
+		p) PROT=$OPTARG ;;
+		l) MOLS=$OPTARG ;;
+		c) CONF=$OPTARG ;;
+		h) usage; exit 0 ;;
+		v) VERB="true";;
+		?) echo "Unvalid option given."; usage; exit 1 ;;
+	esac
+done
+
+[[ -z "$PROT" || -z "$MOLS" || -z "$CONF" ]] && error "Did not feed nacessey arguments."
+
+# Çalışma klasörü oluştur:
+[[ -n "$VERB" ]] && echo "Creating project folder..."
+DIR="Proje$(date +%d%m%y%H%M%S)"
+mkdir $DIR
+cp vina $PROT $MOLS $CONF $DIR
+cd $DIR
+[[ -n "$VERB" ]] && echo "Created project folder $DIR."
+
+# Molekülleri ayrı ayrı çıkar (pdbqt olarak):
+if [[ $VERB == "true" ]]
+then
+	extract
+else
+	extract &>/dev/null
+fi
+[[ "$?" -ne 0 ]] && error "An error raised during ligand extraction. Exiting program."
+
+# Screening esas burada oluyor.
+# Config'de yalnızca gridbox gerekli:
+if [[ $VERB == "true" ]]
+then
+	echo "Starting to screen..."
+	screen
+	echo "Screening procces has done."
+else
+	screen &>/dev/null
+fi
+[[ "$?" -ne 0 ]] && error "An error raised during screening. Exiting program."
+
+# Tüm logları bir csv'de toplayıp ilgilerine göre sırala.
+if [[ $VERB == "true" ]]
+then
+	echo "Writing log files..."
+	write_log
+	echo "Log files has written."
+else
+	write_log &>/dev/null
+fi
+[[ "$?" -ne 0 ]] && error "An error raised during logging. Exiting program."
+
+echo "Created project folder and performed virtual screening in there."
+echo "Sorted log files has written as ${DIR}/sorted_logs.csv. You can"
+echo "Analyze your results now. Have nice day!"
