@@ -23,14 +23,14 @@ error(){
 }
 
 extract(){
-	obabel $MOLS -opdbqt -O ligand.pdbqt -m --errorlevel 3
+	obabel $MOLS -opdbqt -O ligand.pdbqt -m -h --errorlevel 3
 }
 
 screen(){
 	for i in ligand*.pdbqt
 	do
 		base_i="$(echo $i | cut -d"." -f1)"
-		./vina --ligand $i --receptor $PROT --config $CONF --out ${base_i}_out.pdbqt --log ${base_i}_log.txt
+		vina --ligand $i --receptor $PROT --config $CONF --out ${base_i}_out.pdbqt --log ${base_i}_log.txt
 	done
 }
 
