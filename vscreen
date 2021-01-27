@@ -6,11 +6,12 @@ usage(){
 	echo "Files for protein, database file that contains ligands"
 	echo "and configuration file must be provided."
 	echo "  -p PROTEIN    .pdbqt file that provides proteins."
-	echo "  -l LIGANDLAR  Database file which contains ligand structures"
+	echo "  -l LIGANDS	  Database file which contains ligand structures"
 	echo "                (.mol, .sdf etc.)"
 	echo "  -c CONFIG     Configuration file that specify the size and"
 	echo "                the position of the grid (and other optional"
 	echo "                parameters)."
+	echo "	-x NUM		  Number of CPU's to use. Default is blank (max)."
 	echo "  -n NAME       Specify a name for your project."
 	echo "  -h            Write out this message."
 	echo "  -v            Verbose output"
@@ -30,7 +31,7 @@ screen(){
 	for i in ligand*.pdbqt
 	do
 		base_i="$(echo $i | cut -d"." -f1)"
-		vina --ligand $i --receptor $PROT --config $CONF --out ${base_i}_out.pdbqt --log ${base_i}_log.txt
+		vina --ligand $i --receptor $PROT --config $CONF $CPUs --out ${base_i}_out.pdbqt --log ${base_i}_log.txt
 	done
 }
 
@@ -49,12 +50,13 @@ write_log(){
 
 NAME="$(date +%d%m%y%H%M%S)"
 
-while getopts p:l:c:n:hv OPTION
+while getopts p:l:c:x:n:hv OPTION
 do
 	case $OPTION in	
 		p) PROT=$OPTARG ;;
 		l) MOLS=$OPTARG ;;
 		c) CONF=$OPTARG ;;
+		x) CPUs="--cpu $OPTARG" ;;
 		n) NAME=$OPTARG ;;
 		h) usage; exit 0 ;;
 		v) VERB="true";;
