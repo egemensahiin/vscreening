@@ -11,6 +11,7 @@ usage(){
 	echo "  -c CONFIG     Configuration file that specify the size and"
 	echo "                the position of the grid (and other optional"
 	echo "                parameters)."
+	echo "	-s			  AutoDock scripts conversion (default obabel)."
 	echo "	-x NUM		  Number of CPU's to use. Default is blank (max)."
 	echo "  -n NAME       Specify a name for your project."
 	echo "  -h            Write out this message."
@@ -23,8 +24,14 @@ error(){
 	exit 1
 }
 
-extract(){
-	obabel $MOLS -opdbqt -O ligand.pdbqt -m -h --errorlevel 3
+prepare(){
+	obabel $MOLS -opdb -O ligand.pdb -m --errorlevel 3
+	SCR_LOCATION="${HOME}/Docking/MGLTools-1.5.7/MGLToolsPckgs/AutoDockTools/Utilities24/"
+	for i in ligand*.pdb
+	do
+		${SCR_LOCATION}/prepare_ligand4.py -l $i -A hydrogens -v 
+		rm $i
+	done
 }
 
 screen(){
@@ -49,6 +56,7 @@ write_log(){
 }
 
 NAME="$(date +%d%m%y%H%M%S)"
+CONVERSION="obabel"
 
 while getopts p:l:c:x:n:hv OPTION
 do
@@ -56,6 +64,7 @@ do
 		p) PROT=$OPTARG ;;
 		l) MOLS=$OPTARG ;;
 		c) CONF=$OPTARG ;;
+		o) CONVERSION="ads" ;;
 		x) CPUs="--cpu $OPTARG" ;;
 		n) NAME=$OPTARG ;;
 		h) usage; exit 0 ;;
@@ -64,48 +73,54 @@ do
 	esac
 done
 
-[[ -z "$PROT" || -z "$MOLS" || -z "$CONF" ]] && error "Did not feed nacessey arguments."
 
-# Çalışma klasörü oluştur:
-[[ -n "$VERB" ]] && echo "Creating project folder..."
-DIR="Proje${NAME}"
-mkdir $DIR
-cp vina $PROT $MOLS $CONF $DIR
-cd $DIR
-[[ -n "$VERB" ]] && echo "Created project folder $DIR."
+main(){
+	[[ -z "$PROT" || -z "$MOLS" || -z "$CONF" ]] && error "Did not feed nacessey arguments."
+	
+	# Çalışma klasörü oluştur:
+	[[ -n "$VERB" ]] && echo "Creating project folder..."
+	DIR="Proje${NAME}"
+	mkdir $DIR
+	cp vina $PROT $MOLS $CONF $DIR
+	cd $DIR
+	[[ -n "$VERB" ]] && echo "Created project folder $DIR."
+	
+	# Molekülleri ayrı ayrı çıkar (pdbqt olarak):
+	if [[ $VERB == "true" ]]
+	then
+		[[ $CONVERSION == "ads" ]] && prepare
+		[[ $CONVERSION == "obabel" ]] && obabel $MOLS -opdbqt -O ligand.pdbqt -m -h --errorlevel 3
+	else
+		[[ $CONVERSION == "ads" ]] && prepare &>/dev/null
+		[[ $CONVERSION == "obabel" ]] && obabel $MOLS -opdbqt -O ligand.pdbqt -m -h --errorlevel 3 &>/dev/null
+	fi
+	
+	# Screening esas burada oluyor.
+	# Config'de yalnızca gridbox gerekli:
+	if [[ $VERB == "true" ]]
+	then
+		echo "Starting to screen..."
+		screen
+		echo "Screening procces has done."
+	else
+		screen &>/dev/null
+	fi
+	[[ "$?" -ne 0 ]] && error "An error raised during screening. Exiting program."
+	
+	# Tüm logları bir csv'de toplayıp ilgilerine göre sırala.
+	if [[ $VERB == "true" ]]
+	then
+		echo "Writing log files..."
+		write_log
+		echo "Log files has written."
+	else
+		write_log &>/dev/null
+	fi
+	[[ "$?" -ne 0 ]] && error "An error raised during logging. Exiting program."
+	
+	echo "Created project folder and performed virtual screening in there."
+	echo "Sorted log files has written as ${DIR}/sorted_logs.csv. You can"
+	echo "Analyze your results now. Have nice day!"
+}
 
-# Molekülleri ayrı ayrı çıkar (pdbqt olarak):
-if [[ $VERB == "true" ]]
-then
-	extract
-else
-	extract &>/dev/null
-fi
-[[ "$?" -ne 0 ]] && error "An error raised during ligand extraction. Exiting program."
-
-# Screening esas burada oluyor.
-# Config'de yalnızca gridbox gerekli:
-if [[ $VERB == "true" ]]
-then
-	echo "Starting to screen..."
-	screen
-	echo "Screening procces has done."
-else
-	screen &>/dev/null
-fi
-[[ "$?" -ne 0 ]] && error "An error raised during screening. Exiting program."
-
-# Tüm logları bir csv'de toplayıp ilgilerine göre sırala.
-if [[ $VERB == "true" ]]
-then
-	echo "Writing log files..."
-	write_log
-	echo "Log files has written."
-else
-	write_log &>/dev/null
-fi
-[[ "$?" -ne 0 ]] && error "An error raised during logging. Exiting program."
-
-echo "Created project folder and performed virtual screening in there."
-echo "Sorted log files has written as ${DIR}/sorted_logs.csv. You can"
-echo "Analyze your results now. Have nice day!"
+main
