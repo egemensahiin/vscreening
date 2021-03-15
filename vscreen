@@ -26,10 +26,10 @@ error(){
 
 prepare(){
 	obabel $MOLS -opdb -O ligand.pdb -m --errorlevel 3
-	SCR_LOCATION="${HOME}/Docking/MGLTools-1.5.7/MGLToolsPckgs/AutoDockTools/Utilities24/"
+	SCR_LOCATION="$(locate prepare_ligand4)"
 	for i in ligand*.pdb
 	do
-		${SCR_LOCATION}/prepare_ligand4.py -l $i -A hydrogens -v 
+		${SCR_LOCATION} -l $i -A hydrogens -v 
 		rm $i
 	done
 }
@@ -38,7 +38,7 @@ screen(){
 	for i in ligand*.pdbqt
 	do
 		base_i="$(echo $i | cut -d"." -f1)"
-		vina --ligand $i --receptor $PROT --config $CONF $CPUs --out ${base_i}_out.pdbqt --log ${base_i}_log.txt
+		./bin/vina --ligand $i --receptor $PROT --config $CONF $CPUs --out ${base_i}_out.pdbqt --log ${base_i}_log.txt
 	done
 }
 
